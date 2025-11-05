@@ -7,10 +7,16 @@ export function Popup() {
   const [response, setResponse] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [ingestStatus, setIngestStatus] = useState<string | null>(null)
 
   useEffect(() => {
     void (async () => {
       const result = await browser.runtime.sendMessage({ type: 'load-api-key' })
+      if (result?.type === 'error') {
+        setError(String(result.error ?? 'No se pudo cargar la API key'))
+        return
+      }
+
       if (result?.payload) {
         setApiKey(result.payload as string)
       }
@@ -22,7 +28,10 @@ export function Popup() {
       event.preventDefault()
       setError(null)
       try {
-        await browser.runtime.sendMessage({ type: 'save-api-key', apiKey })
+        const result = await browser.runtime.sendMessage({ type: 'save-api-key', apiKey })
+        if (result?.type !== 'save-api-key:success') {
+          throw new Error(String(result?.error ?? 'No se pudo guardar la API key'))
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
       }
@@ -41,6 +50,10 @@ export function Popup() {
           type: 'agent-chat',
           prompt
         })
+        if (result?.type === 'error') {
+          throw new Error(String(result.error ?? 'Fallo la consulta al agente'))
+        }
+
         if (result?.payload) {
           setResponse(String(result.payload))
         }
@@ -55,6 +68,7 @@ export function Popup() {
 
   const onIngestPage = useCallback(async () => {
     setError(null)
+    setIngestStatus(null)
     try {
       const result = await browser.tabs.query({ active: true, currentWindow: true })
       const [tab] = result
@@ -66,16 +80,32 @@ export function Popup() {
         type: 'content:collect-page-text'
       })
 
+      if (pageContent?.type !== 'content:collect-page-text:success') {
+        throw new Error(String(pageContent?.error ?? 'No se pudo extraer el contenido de la página'))
+      }
+
       const text = String(pageContent?.payload ?? '').trim()
       if (!text) {
         throw new Error('No readable content detected on this page')
       }
 
-      await browser.runtime.sendMessage({
+      const ingestResult = await browser.runtime.sendMessage({
         type: 'ingest-content',
         source: tab.url,
         content: text
       })
+
+      if (ingestResult?.type === 'error') {
+        throw new Error(String(ingestResult?.error ?? 'No se pudo indexar el contenido'))
+      }
+
+      const chunkCount = Number((ingestResult?.payload as { entries?: number } | undefined)?.entries ?? 0)
+      if (chunkCount > 0) {
+        setIngestStatus(`Contenido indexado en ${chunkCount} fragmentos`)
+      } else {
+        setIngestStatus('Contenido indexado')
+      }
+      setTimeout(() => setIngestStatus(null), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -101,6 +131,7 @@ export function Popup() {
       <section>
         <h2>Contexto</h2>
         <button onClick={onIngestPage}>Ingerir página actual</button>
+        {ingestStatus && <p className="status">{ingestStatus}</p>}
       </section>
 
       <section>
