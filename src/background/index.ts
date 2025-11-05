@@ -10,6 +10,7 @@ type AgentMessage =
   | { type: 'load-api-key' }
   | { type: 'ingest-content'; content: string; source?: string }
   | { type: 'agent-chat'; prompt: string }
+  | { type: 'agent-chat:selection'; selection: string }
 
 interface AgentResponse {
   type: string
@@ -124,6 +125,15 @@ browser.runtime.onMessage.addListener(
         case 'agent-chat': {
           const completion = await agentChat(message.prompt)
           return { type: 'agent-chat:success', payload: completion }
+        }
+        case 'agent-chat:selection': {
+          const selectionText = message.selection.trim()
+          if (!selectionText) {
+            throw new Error('No se recibió texto seleccionado para resumir')
+          }
+          const selectionPrompt = `Resume el siguiente fragmento seleccionado:\n\n${selectionText}`
+          const completion = await agentChat(selectionPrompt)
+          return { type: 'agent-chat:selection:success', payload: completion }
         }
         default:
           return { type: 'error', error: 'Unknown message type' }
