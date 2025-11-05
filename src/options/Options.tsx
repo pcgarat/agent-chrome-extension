@@ -8,6 +8,13 @@ export function Options() {
   useEffect(() => {
     void (async () => {
       const result = await browser.runtime.sendMessage({ type: 'load-api-key' })
+      if (result?.type === 'error') {
+        const message = String(result.error ?? 'No se pudo cargar la API key')
+        setStatus(`Error: ${message}`)
+        setTimeout(() => setStatus(null), 2000)
+        return
+      }
+
       if (result?.payload) {
         setApiKey(result.payload as string)
       }
@@ -17,9 +24,18 @@ export function Options() {
   const handleSubmit = useCallback(
     async (event: FormEvent) => {
       event.preventDefault()
-      await browser.runtime.sendMessage({ type: 'save-api-key', apiKey })
-      setStatus('Guardado correctamente')
-      setTimeout(() => setStatus(null), 2000)
+      try {
+        const result = await browser.runtime.sendMessage({ type: 'save-api-key', apiKey })
+        if (result?.type === 'error') {
+          throw new Error(String(result.error ?? 'No se pudo guardar la API key'))
+        }
+        setStatus('Guardado correctamente')
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        setStatus(`Error: ${message}`)
+      } finally {
+        setTimeout(() => setStatus(null), 2000)
+      }
     },
     [apiKey]
   )
