@@ -1,21 +1,11 @@
 import browser from 'webextension-polyfill'
 
+import type { BackgroundMessage, BackgroundResponse } from '../shared/messages'
+
 const STORAGE_KEYS = {
   apiKey: 'agent:openai_api_key',
   vectorStore: 'agent:vector_store'
 } as const
-
-type AgentMessage =
-  | { type: 'save-api-key'; apiKey: string }
-  | { type: 'load-api-key' }
-  | { type: 'ingest-content'; content: string; source?: string }
-  | { type: 'agent-chat'; prompt: string }
-
-interface AgentResponse {
-  type: string
-  payload?: unknown
-  error?: string
-}
 
 type VectorStoreEntry = {
   id: string
@@ -233,7 +223,7 @@ browser.runtime.onInstalled.addListener(() => {
 })
 
 browser.runtime.onMessage.addListener(
-  async (message: AgentMessage): Promise<AgentResponse> => {
+  async (message: BackgroundMessage): Promise<BackgroundResponse> => {
     try {
       switch (message.type) {
         case 'save-api-key':
