@@ -1,5 +1,7 @@
 import browser from 'webextension-polyfill'
 
+import type { ContentScriptRequest, ContentScriptResponse } from '../shared/messages'
+
 function highlightSelection() {
   const selection = window.getSelection()
   if (!selection || selection.rangeCount === 0) {
@@ -27,15 +29,20 @@ async function extractPageText(): Promise<string> {
   return chunks.join('\n')
 }
 
-browser.runtime.onMessage.addListener(async (message) => {
-  if (message?.type === 'content:highlight-selection') {
-    highlightSelection()
-  }
+browser.runtime.onMessage.addListener(
+  async (message: ContentScriptRequest): Promise<ContentScriptResponse | void> => {
+    if (message?.type === 'content:highlight-selection') {
+      highlightSelection()
+      return { type: 'content:highlight-selection:success' }
+    }
 
-  if (message?.type === 'content:collect-page-text') {
-    const text = await extractPageText()
-    return { type: 'content:collect-page-text:success', payload: text }
+    if (message?.type === 'content:collect-page-text') {
+      const text = await extractPageText()
+      return { type: 'content:collect-page-text:success', payload: text }
+    }
+
+    return undefined
   }
-})
+)
 
 export {}
